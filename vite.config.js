@@ -5,5 +5,5 @@ import react from '@vitejs/plugin-react'
 // set base to '/<repo>/'. If using a custom domain or Vercel/Netlify, leave it as '/'.
 export default defineConfig({
   plugins: [react()],
-  base: '/hustle-hard/',
+  base: '/Hustle-Hard-1022/',
 })
