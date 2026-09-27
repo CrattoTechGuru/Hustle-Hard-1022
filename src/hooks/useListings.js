@@ -1,12 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
-/**
- * Loads listings for the current layer (White Market vs Dark Node) and
- * optional category / search filters. Exposes refetch so components can
- * refresh after a new listing is created.
- */
-export function useListings({ isDarkWeb, category, searchTerm }) {
+export function useListings({ isDarkWeb, category, area, searchTerm }) {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -19,10 +14,15 @@ export function useListings({ isDarkWeb, category, searchTerm }) {
       .from('listings')
       .select('*')
       .eq('is_dark_market', isDarkWeb)
+      .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (category && category !== 'All') {
       query = query.eq('category', category)
+    }
+
+    if (area && area !== 'All') {
+      query = query.eq('area', area)
     }
 
     if (searchTerm && searchTerm.trim() !== '') {
@@ -38,7 +38,7 @@ export function useListings({ isDarkWeb, category, searchTerm }) {
       setListings(data || [])
     }
     setLoading(false)
-  }, [isDarkWeb, category, searchTerm])
+  }, [isDarkWeb, category, area, searchTerm])
 
   useEffect(() => {
     fetchListings()

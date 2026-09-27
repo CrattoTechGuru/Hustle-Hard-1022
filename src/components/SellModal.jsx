@@ -1,15 +1,19 @@
 import React, { useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { normalizeToInternational } from '../lib/whatsapp'
+import { draftListingWithAI } from '../lib/ai'
 import { CATEGORIES } from './Categories'
+import { AREAS } from './AreaFilter'
+import ImageUploader from './ImageUploader'
 
 const initialForm = {
   title: '',
   description: '',
   price: '',
   category: CATEGORIES[0].name,
+  area: AREAS[1],
   seller_name: '',
   seller_whatsapp: '',
   image_url: '',
@@ -22,8 +26,30 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
   const [form, setForm] = useState(initialForm)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [roughNotes, setRoughNotes] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [draftError, setDraftError] = useState(null)
 
   const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  const handleAIDraft = async () => {
+    if (!roughNotes.trim()) return
+    setDrafting(true)
+    setDraftError(null)
+    try {
+      const draft = await draftListingWithAI(roughNotes)
+      setForm((f) => ({
+        ...f,
+        title: draft.title || f.title,
+        description: draft.description || f.description,
+        category: draft.category || f.category,
+      }))
+    } catch (err) {
+      setDraftError('AI drafting is unavailable right now -- fill in the fields below manually.')
+    } finally {
+      setDrafting(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -36,16 +62,19 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
 
     setSubmitting(true)
 
+    const ownerToken = crypto.randomUUID()
     const { error: insertError } = await supabase.from('listings').insert([
       {
         title: form.title.trim(),
         description: form.description.trim(),
         price: Number(form.price),
         category: form.category,
+        area: form.area,
         seller_name: form.seller_name.trim(),
         seller_whatsapp: normalizeToInternational(form.seller_whatsapp),
         image_url: form.image_url.trim() || null,
         is_dark_market: darkMode,
+        owner_token: ownerToken,
       },
     ])
 
@@ -56,7 +85,15 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
       return
     }
 
+    try {
+      const mine = JSON.parse(window.localStorage.getItem('hustlehard-my-listings') || '[]')
+      window.localStorage.setItem('hustlehard-my-listings', JSON.stringify([...mine, ownerToken]))
+    } catch {
+      /* ignore */
+    }
+
     setForm(initialForm)
+    setRoughNotes('')
     onCreated?.()
     onClose()
   }
@@ -76,6 +113,28 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+          <Field label="Let AI draft it for you (optional)">
+            <div className="flex gap-2">
+              <input
+                value={roughNotes}
+                onChange={(e) => setRoughNotes(e.target.value)}
+                className={inputClass(darkMode)}
+                placeholder="e.g. selling my samsung a14 barely used asking 1500"
+              />
+              <button
+                type="button"
+                onClick={handleAIDraft}
+                disabled={drafting || !roughNotes.trim()}
+                className={`shrink-0 flex items-center gap-1.5 px-3 rounded-lg text-xs font-bold uppercase disabled:opacity-50 ${
+                  darkMode ? 'bg-darkTerminal-neon text-black' : 'bg-emerald-600 text-white'
+                }`}
+              >
+                {drafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              </button>
+            </div>
+            {draftError && <p className="text-[11px] text-red-500 mt-1">{draftError}</p>}
+          </Field>
+
           <Field label="Item title *">
             <input
               value={form.title}
@@ -118,6 +177,22 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
             </Field>
           </div>
 
+          <Field label="Area *">
+            <select value={form.area} onChange={update('area')} className={inputClass(darkMode)}>
+              {AREAS.filter((a) => a !== 'All').map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Photo">
+            <ImageUploader
+              darkMode={darkMode}
+              value={form.image_url}
+              onUploaded={(url) => setForm((f) => ({ ...f, image_url: url }))}
+            />
+          </Field>
+
           <Field label="Your name *">
             <input
               value={form.seller_name}
@@ -136,15 +211,6 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
             />
           </Field>
 
-          <Field label="Image URL (optional)">
-            <input
-              value={form.image_url}
-              onChange={update('image_url')}
-              className={inputClass(darkMode)}
-              placeholder="https://..."
-            />
-          </Field>
-
           {error && <p className="text-red-500 text-xs font-semibold">{error}</p>}
 
           <button
@@ -157,6 +223,10 @@ export default function SellModal({ isDarkWeb: isDarkOverride, onClose, onCreate
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             {submitting ? 'Posting...' : 'Post Listing'}
           </button>
+
+          <p className="text-[10px] opacity-50 text-center">
+            Listings auto-expire after 14 days to keep the marketplace fresh.
+          </p>
         </form>
       </div>
     </div>

@@ -1,13 +1,3 @@
-/**
- * Builds a wa.me deep link that pre-fills a WhatsApp message with listing
- * details, so a buyer can message the seller with one tap and no backend
- * chat system is needed.
- *
- * @param {string} sellerWhatsapp - digits only, country code first, e.g. "27720708648"
- * @param {string} itemName
- * @param {number|string} price
- * @returns {string} a wa.me URL safe to use in an <a href> or window.open
- */
 export function buildWhatsAppLink(sellerWhatsapp, itemName, price) {
   const cleanNumber = String(sellerWhatsapp || '').replace(/\D/g, '')
   const priceText = price ? ` (R${price})` : ''
@@ -16,10 +6,13 @@ export function buildWhatsAppLink(sellerWhatsapp, itemName, price) {
   return `https://wa.me/${cleanNumber}?text=${encodedMessage}`
 }
 
-/**
- * Normalizes a locally-typed SA number (e.g. "0720708648") into the
- * international digits-only format wa.me expects ("27720708648").
- */
+export function buildOfferLink(sellerWhatsapp, itemName, offerAmount) {
+  const cleanNumber = String(sellerWhatsapp || '').replace(/\D/g, '')
+  const message = `Hi, I'd like to offer R${offerAmount} for your listing "${itemName}" on Hustle Hard. Would you accept?`
+  const encodedMessage = encodeURIComponent(message)
+  return `https://wa.me/${cleanNumber}?text=${encodedMessage}`
+}
+
 export function normalizeToInternational(localNumber) {
   const digits = String(localNumber || '').replace(/\D/g, '')
   if (digits.startsWith('0')) {
